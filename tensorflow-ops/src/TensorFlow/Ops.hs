@@ -102,6 +102,7 @@ module TensorFlow.Ops
     , zeros
     , CoreOps.zerosLike
     , scalarize
+    , InitializedVariable(..)
     ) where
 
 import Data.ByteString (ByteString)
@@ -160,10 +161,12 @@ placeholder shape' =
             & opAttr "dtype" .~ tensorType (undefined :: a)
             & opAttr "shape" .~ shape'
 
+data InitializedVariable a = InitializedVariable (Tensor Ref a) ControlNode
+
 -- | Creates a variable initialized to the given value.
 -- Initialization happens next time session runs.
 initializedVariable :: forall a . TensorType a
-                    => Tensor Value a -> Build (Tensor Ref a)
+                    => Tensor Value a -> Build (InitializedVariable a)
 initializedVariable initializer = do
     v <- CoreOps.variable []  -- The shape is not known initially.
     (i :: Tensor Ref a) <-
@@ -171,15 +174,15 @@ initializedVariable initializer = do
                  & opAttr "T" .~ tensorType (undefined :: a)
                  & opAttr "use_locking" .~ True
                  & opAttr "validate_shape" .~ False
-                 )
-        v initializer
-    addInitializer =<< group i
-    return v
+                 ) v initializer
+    initializer <- group i
+    addInitializer initializer
+    return $ InitializedVariable v initializer
 
 -- | Creates a zero-initialized variable with the given shape.
 zeroInitializedVariable
   :: (TensorType a, Num a) =>
-     TensorFlow.Types.Shape -> Build (Tensor TensorFlow.Tensor.Ref a)
+     TensorFlow.Types.Shape -> Build (InitializedVariable a)
 zeroInitializedVariable = initializedVariable . zeros
 
 -- TODO: Support heterogeneous list of tensors.
@@ -246,7 +249,7 @@ constant (Shape shape') values
                 & tensorVal .~ values
 
 -- | Reshape a N-D tensor down to a scalar.
--- 
+--
 -- See `TensorFlow.GenOps.Core.reshape`.
 scalarize :: (TensorType a) => Tensor v a -> Tensor Value a
 scalarize t = CoreOps.reshape t (vector scalarShape)

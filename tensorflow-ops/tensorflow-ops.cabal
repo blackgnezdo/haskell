@@ -45,6 +45,7 @@ Test-Suite BuildTest
                , lens-family
                , google-shim
                , tensorflow
+               , tensorflow-core-ops
                , tensorflow-ops
                , tensorflow-proto
                , test-framework
